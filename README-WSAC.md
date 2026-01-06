@@ -10,7 +10,7 @@ This tool enables your Open WebUI instance to not only search the internet but t
 
 ## ✨ Key Features
 
-* **Dual-Engine Search:** Simultaneously utilizes **SearXNG** and **OpenWebUI Native Search** to find the most relevant URLs.
+* **Dual-Engine Search:** Simultaneously utilizes [SearXNG](https://github.com/searxng/searxng) and OpenWebUI Native Search to find the most relevant URLs.
 * **Intelligent Crawling:** Powered by [Crawl4AI](https://crawl4ai.com), it extracts clean, markdown-formatted content while stripping away ads, sidebars, and navigation clutter.
 * **Research Mode:** Recursively follows links on discovered pages to perform "Deep Research" based on keyword relevance using **Crawl4AI**'s **Deep Crawl** feature.
 * **LLM-Driven Extraction:** Uses an OpenAI-compatible LLM (like GPT-4, Claude, or Ollama) to summarize and structure the crawled data before it reaches your chat.
