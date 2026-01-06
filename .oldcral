@@ -1,0 +1,155 @@
+"""
+title: Crawl4AI URL Crawler
+description: Extracts content from a URL using a self-hosted Crawl4AI instance.
+author: open-webui
+author_url: https://github.com/lexiismadd
+funding_url: https://github.com/open-webui
+version: 1.1.0
+license: MIT
+requirements: aiohttp, crawl4ai, loguru
+"""
+
+import crawl4ai
+import requests
+import json
+from pydantic import BaseModel, Field
+from typing import Any, List, Optional, Union, Callable
+from loguru import logger
+from crawl4ai import (
+    AsyncWebCrawler,
+    AdaptiveCrawler,
+    CrawlerRunConfig,
+    DefaultTableExtraction,
+    LLMConfig,
+    BrowserConfig,
+    CacheMode,
+    LLMContentFilter,
+    DefaultMarkdownGenerator,
+    LLMExtractionStrategy,
+)
+from crawl4ai.docker_client import Crawl4aiDockerClient
+from crawl4ai.content_filter_strategy import PruningContentFilter
+from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+
+
+class Tools:
+    class Valves(BaseModel):
+        CRAWL4AI_BASE_URL: str = Field(
+            default="http://crawl4ai:11235",
+            description="The base URL for your Crawl4AI Docker container.",
+        )
+        LLM_BASE_URL: str = Field(
+            default="https://openrouter.ai/api/v1",
+            description="The base URL for your preferred OpenAI-compatible LLM.",
+        )
+        LLM_API_TOKEN: str = Field(
+            default="",
+            description="Optional API Token for your preferred OpenAI-compatible LLM.",
+        )
+        LLM_PROVIDER: str = Field(
+            default="openai/gpt-4o",
+            description="The provider string / model to use with your preferred OpenAI-compatible LLM.",
+        )
+        LLM_TEMPERATURE: float = Field(
+            default=0.7,
+            description="The temperature to use for the LLM.",
+        )
+
+    def __init__(self):
+        self.valves = self.Valves()
+        self.c4a_instance = Crawl4aiDockerClient(base_url=self.valves.CRAWL4AI_BASE_URL)
+        logger.info("Crawl4AI tool initialized")
+
+    async def crawl_url(
+        self, urls: Union[list, str], __event_emitter__: Callable[[dict], Any] = None
+    ) -> str:
+        """
+        USE THIS TOOL whenever the user provides a URL or asks to 'check', 'crawl', 'scrape',
+        'browse', or 'read' a website or whenever a web search has been performed.
+        This tool converts any webpage into clean Markdown text.
+        :param url: The exact web URL to extract data from.
+        """
+        if isinstance(urls, str):
+            urls = [urls]
+
+        for idx, url in enumerate(urls):
+            # Ensure URL starts with http
+            if not url.startswith("http"):
+                urls[idx] = f"https://{url}"
+
+        endpoint = f"{self.valves.CRAWL4AI_BASE_URL}/crawl"
+
+        if __event_emitter__:
+            await __event_emitter__(
+                {
+                    "type": "status",
+                    "data": {"description": f"Crawling websites...", "done": False},
+                }
+            )
+
+        logger.info(f"Contacting Crawl4AI at {endpoint} for URL: {url}")
+        async with self.c4a_instance as client:
+            try:
+                data = await client.crawl(
+                    urls=urls,
+                    browser_config=BrowserConfig(
+                        headless=True,
+                        light_mode=True,
+                        headers={
+                            "sec-ch-ua": '"Chromium";v="116", "Not_A Brand";v="8", "Google Chrome";v="116"'
+                        },
+                        extra_args=[
+                            "--no-sandbox",
+                            "--disable-gpu",
+                        ],
+                    ),
+                    crawler_config=CrawlerRunConfig(
+                        markdown_generator=DefaultMarkdownGenerator(
+                            content_filter=PruningContentFilter()
+                        ),
+                        scraping_strategy=LLMExtractionStrategy(
+                            llm_config=LLMConfig(
+                                provider=self.valves.LLM_PROVIDER,
+                                api_token=self.valves.LLM_API_TOKEN,
+                                base_url=self.valves.LLM_BASE_URL,
+                                temperature=self.valves.LLM_TEMPERATURE,
+                            )
+                        ),
+                        table_extraction=DefaultTableExtraction(),
+                        exclude_social_media_domains=[
+                            "facebook.com",
+                            "twitter.com",
+                            "x.com",
+                            "linkedin.com",
+                            "instagram.com",
+                            "pinterest.com",
+                            "tiktok.com",
+                            "snapchat.com",
+                            "reddit.com",
+                        ],
+                        stream=False,
+                    ),
+                )
+
+                # markdown = data.get("markdown",{}).get("raw_markdown",{})
+                logger.info(f"Crawl4AI response data: {data}")
+                markdown = data._markdown.raw_markdown
+                if __event_emitter__:
+                    await __event_emitter__(
+                        {
+                            "type": "status",
+                            "data": {"description": f"Crawled {url}...", "done": True},
+                        }
+                    )
+
+                logger.info(f"Received markdown content from Crawl4AI for URL: {url}")
+
+                if not markdown:
+                    return f"Successfully connected to Crawl4AI, but no markdown was returned for {url}."
+
+                return f"--- CONTENT FROM {url} ---\n\n{markdown}"
+
+            except requests.exceptions.RequestException as e:
+                return f"Network error connecting to Crawl4AI: {str(e)}. Check if the URL {self.valves.CRAWL4AI_BASE_URL} is accessible from the Open WebUI container."
+            except Exception as e:
+                return f"An unexpected error occurred: {str(e)}"
