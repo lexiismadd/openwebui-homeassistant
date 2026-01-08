@@ -82,6 +82,7 @@ This tool enables your Open WebUI instance to not only search the internet but t
 To use this tool, your environment must have:
 
 * **Crawl4AI Server:** A running instance of Crawl4AI (usually via Docker).
+* **SearXNG:** An accessible instance of SearXNG (if using SearXNG).
 * **OpenWebUI:** A recent version (v0.6.42 or higher) to support Native Search and Tools.
 
 ---
@@ -104,6 +105,6 @@ To use this tool, your environment must have:
 
 ## Issues
 
-Please log any issues [on the Github repo](https://github.com/lexiismadd/openwebui-extensibles/issues)
+Please log any issues [on my Github repo](https://github.com/lexiismadd/openwebui-extensibles/issues)
 
 ---
